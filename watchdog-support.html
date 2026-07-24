@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watchdog Support — wildfire and hazard monitoring for iPhone</title>
+<meta name="description" content="Support, troubleshooting and contact information for Watchdog, a wildfire and hazard monitoring app for iPhone.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Palette drawn from a USGS 7.5-minute quadrangle sheet. The purple is the
+       photorevision overprint — on a quad it means "revised from aerial imagery,
+       not field checked", which is the exact epistemic status of this app's data. */
+    --paper:      #E9EBE4;
+    --paper-deep: #DFE2D8;
+    --ink:        #23261F;
+    --ink-soft:   #545A4B;
+    --contour:    #A8845C;
+    --overprint:  #6B3FA0;
+    --water:      #3F6F80;
+    --rule:       #C6CABA;
+    --alarm:      #9E2B25;
+
+    --f-display: "Saira Condensed", "Arial Narrow", sans-serif;
+    --f-body:    "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --measure: 68ch;
+    --gutter: clamp(20px, 5vw, 56px);
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+
+  html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--f-body);
+    font-size:17px;
+    line-height:1.62;
+    /* Faint graticule, like the tick grid on a map sheet. */
+    background-image:
+      linear-gradient(to right, rgba(35,38,31,.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(35,38,31,.035) 1px, transparent 1px);
+    background-size:88px 88px;
+  }
+
+  .wrap{ max-width:1080px; margin:0 auto; padding:0 var(--gutter); }
+
+  a{ color:var(--water); text-underline-offset:3px; text-decoration-thickness:1px; }
+  a:hover{ color:var(--overprint); }
+  :focus-visible{ outline:2px solid var(--overprint); outline-offset:3px; border-radius:2px; }
+
+  .eyebrow{
+    font-family:var(--f-mono); font-size:11.5px; font-weight:500;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft);
+    margin:0 0 14px;
+  }
+
+  h1,h2,h3{ font-family:var(--f-display); font-weight:700; line-height:1.02; margin:0; letter-spacing:-.005em; }
+  h1{ font-size:clamp(52px, 11vw, 104px); text-transform:uppercase; }
+  h2{ font-size:clamp(28px, 4.4vw, 40px); text-transform:uppercase; letter-spacing:.005em; }
+  h3{ font-size:20px; font-weight:600; font-family:var(--f-body); letter-spacing:0; line-height:1.35; }
+  p{ margin:0 0 1em; max-width:var(--measure); }
+  ul{ max-width:var(--measure); padding-left:1.1em; margin:0 0 1em; }
+  li{ margin-bottom:.5em; }
+
+  /* ---------- masthead ---------- */
+  .masthead{ padding:clamp(40px,7vw,84px) 0 clamp(28px,4vw,44px); }
+  .masthead-grid{ display:grid; grid-template-columns:1fr; gap:clamp(28px,4vw,48px); align-items:center; }
+  @media (min-width:900px){ .masthead-grid{ grid-template-columns:1fr 1.05fr; } }
+
+  h1 .h1-sub{ display:block; color:var(--overprint); }
+  .lede{ font-size:clamp(18px,2.1vw,21px); color:var(--ink-soft); margin-top:22px; max-width:44ch; }
+
+  .cta-row{ display:flex; flex-wrap:wrap; gap:12px; margin-top:28px; }
+  .btn{
+    display:inline-block; font-family:var(--f-display); font-size:17px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.06em; text-decoration:none;
+    padding:12px 24px; border:1.5px solid var(--ink); color:var(--ink); background:transparent;
+    transition:background .16s ease, color .16s ease, border-color .16s ease;
+  }
+  .btn:hover{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .btn-primary{ background:var(--overprint); border-color:var(--overprint); color:#fff; }
+  .btn-primary:hover{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
+
+  /* ---------- hero figure ---------- */
+  .plate{ width:100%; height:auto; display:block; }
+  .plate .ring{ fill:none; stroke-linejoin:round; }
+  .plate .grat{ stroke:rgba(35,38,31,.10); stroke-width:1; }
+  .plate .lead{ stroke:var(--ink-soft); stroke-width:1; fill:none; }
+  .plate .lbl{ font-family:var(--f-mono); font-size:11px; fill:var(--ink); letter-spacing:.04em; }
+  .plate .lbl-sm{ font-family:var(--f-mono); font-size:9.5px; fill:var(--ink-soft); letter-spacing:.04em; }
+  .plate figcaption{ display:none; }
+
+  @media (prefers-reduced-motion: no-preference){
+    .plate .ring{ stroke-dasharray:1400; stroke-dashoffset:1400; animation:draw 1.5s cubic-bezier(.32,.72,.3,1) forwards; }
+    .plate .r1{ animation-delay:.05s } .plate .r2{ animation-delay:.28s }
+    .plate .r3{ animation-delay:.51s } .plate .r4{ animation-delay:.74s }
+    .plate .lead, .plate .lbl, .plate .lbl-sm, .plate .origin{ opacity:0; animation:fade .5s ease forwards; }
+    .plate .g1{ animation-delay:.75s } .plate .g2{ animation-delay:.98s }
+    .plate .g3{ animation-delay:1.21s } .plate .g4{ animation-delay:1.44s }
+    .plate .origin{ animation-delay:.3s }
+    @keyframes draw{ to{ stroke-dashoffset:0 } }
+    @keyframes fade{ to{ opacity:1 } }
+  }
+
+  /* ---------- status strip ---------- */
+  .strip{ border-top:1.5px solid var(--ink); border-bottom:1px solid var(--rule); background:var(--paper-deep); }
+  .strip-inner{ display:flex; flex-wrap:wrap; gap:6px 34px; padding:14px 0; font-family:var(--f-mono); font-size:12.5px; color:var(--ink-soft); }
+  .strip-inner b{ color:var(--ink); font-weight:500; }
+
+  /* ---------- sections ---------- */
+  .band{ padding:clamp(48px,7vw,88px) 0; border-bottom:1px solid var(--rule); }
+  .band-head{ display:flex; align-items:baseline; gap:16px; margin-bottom:34px; flex-wrap:wrap; }
+  .band-head .tag{ font-family:var(--f-mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--overprint); }
+
+  /* ---------- quick jump ---------- */
+  .jump{ display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:0; border-top:1px solid var(--rule); border-left:1px solid var(--rule); }
+  .jump a{
+    display:block; padding:22px 24px; text-decoration:none; color:var(--ink);
+    border-right:1px solid var(--rule); border-bottom:1px solid var(--rule);
+    background:transparent; transition:background .15s ease;
+  }
+  .jump a:hover{ background:var(--paper-deep); color:var(--ink); }
+  .jump .q{ font-family:var(--f-display); font-size:21px; font-weight:600; text-transform:uppercase; letter-spacing:.01em; display:block; }
+  .jump .a{ font-size:14.5px; color:var(--ink-soft); display:block; margin-top:5px; line-height:1.45; }
+
+  /* ---------- troubleshooting ---------- */
+  .topic{ margin-bottom:52px; }
+  .topic > h3{ font-family:var(--f-display); font-size:15px; font-weight:600; text-transform:uppercase; letter-spacing:.14em; color:var(--ink-soft); padding-bottom:9px; border-bottom:1px solid var(--rule); margin-bottom:6px; }
+
+  details{ border-bottom:1px solid var(--rule); }
+  details > summary{
+    list-style:none; cursor:pointer; padding:17px 34px 17px 0; position:relative;
+    font-weight:600; font-size:17.5px; line-height:1.4;
+  }
+  details > summary::-webkit-details-marker{ display:none; }
+  details > summary::after{
+    content:"+"; position:absolute; right:4px; top:50%; transform:translateY(-50%);
+    font-family:var(--f-mono); font-size:19px; color:var(--overprint); line-height:1;
+  }
+  details[open] > summary::after{ content:"\2013"; }
+  details > summary:hover{ color:var(--overprint); }
+  .answer{ padding:0 0 22px; }
+  .answer p:last-child, .answer ul:last-child{ margin-bottom:0; }
+
+  kbd{
+    font-family:var(--f-mono); font-size:.87em; background:var(--paper-deep);
+    border:1px solid var(--rule); padding:1px 6px; white-space:nowrap;
+  }
+
+  /* ---------- sources ---------- */
+  .sources{ width:100%; border-collapse:collapse; font-size:15.5px; max-width:var(--measure); }
+  .sources th{ text-align:left; font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); font-weight:500; padding:0 18px 9px 0; border-bottom:1.5px solid var(--ink); }
+  .sources td{ padding:12px 18px 12px 0; border-bottom:1px solid var(--rule); vertical-align:top; }
+  .sources td:first-child{ font-weight:600; white-space:nowrap; }
+  .sources td:last-child{ color:var(--ink-soft); padding-right:0; }
+
+  /* ---------- notice ---------- */
+  .notice{ border:2px solid var(--alarm); padding:clamp(24px,4vw,38px); background:rgba(158,43,37,.045); max-width:var(--measure); }
+  .notice h2{ color:var(--alarm); font-size:clamp(24px,3.4vw,32px); margin-bottom:16px; }
+  .notice p:last-child{ margin-bottom:0; }
+  .notice strong{ color:var(--alarm); }
+
+  /* ---------- contact ---------- */
+  .contact-grid{ display:grid; grid-template-columns:1fr; gap:34px; }
+  @media (min-width:760px){ .contact-grid{ grid-template-columns:1.2fr 1fr; } }
+  .dl{ margin:0; }
+  .dl dt{ font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-top:20px; }
+  .dl dt:first-child{ margin-top:0; }
+  .dl dd{ margin:5px 0 0; font-size:17px; }
+
+
+  footer{ padding:44px 0 60px; font-size:14px; color:var(--ink-soft); }
+  footer p{ margin:0 0 .4em; }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead-grid">
+    <div>
+      <p class="eyebrow">Support &amp; troubleshooting</p>
+      <h1>Watchdog<span class="h1-sub">Support</span></h1>
+      <p class="lede">Wildfire and hazard monitoring for iPhone. If something isn't working the way you expect, start below — most questions are answered here.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#contact">Contact support</a>
+        <a class="btn" href="#fixes">Troubleshooting</a>
+      </div>
+    </div>
+
+    <figure style="margin:0">
+      <svg class="plate" viewBox="0 0 560 340" role="img" aria-labelledby="plate-title plate-desc">
+        <title id="plate-title">A fire perimeter growing over four reporting dates</title>
+        <desc id="plate-desc">Four nested irregular outlines showing one fire's mapped perimeter expanding from 900 acres on June 29 to 101,546 acres on July 23.</desc>
+
+        <g class="grat">
+          <path d="M60 30 V310 M148 30 V310 M236 30 V310 M324 30 V310"/>
+          <path d="M60 62 H360 M60 150 H360 M60 238 H360"/>
+        </g>
+
+        <path class="ring r4" d="M186 56 C234 44, 288 62, 314 100 C340 138, 338 190, 312 226 C286 264, 236 284, 190 278 C142 272, 100 242, 88 200 C76 156, 96 104, 138 76 Z" stroke="#6B3FA0" stroke-width="2.4"/>
+        <path class="ring r3" d="M190 82 C228 72, 268 86, 288 116 C306 142, 304 178, 286 204 C266 232, 228 246, 194 240 C158 234, 128 210, 120 178 C112 146, 128 110, 158 92 Z" stroke="#8A5F93" stroke-width="1.9"/>
+        <path class="ring r2" d="M196 106 C224 100, 252 112, 262 136 C274 156, 268 182, 250 198 C232 216, 202 220, 180 210 C156 200, 142 176, 146 152 C150 128, 172 110, 196 106 Z" stroke="#A8845C" stroke-width="1.6"/>
+        <path class="ring r1" d="M200 132 C218 128, 236 138, 238 156 C244 170, 234 186, 218 192 C202 200, 182 196, 172 182 C162 170, 164 150, 178 140 Z" stroke="#A8845C" stroke-width="1.4" opacity=".62"/>
+
+        <g class="origin">
+          <circle cx="201" cy="163" r="3" fill="#9E2B25"/>
+          <circle cx="201" cy="163" r="7.5" fill="none" stroke="#9E2B25" stroke-width="1" opacity=".45"/>
+        </g>
+
+        <g class="lead g4"><path d="M300 80 L340 62 L392 62"/><circle cx="300" cy="80" r="2" fill="#545A4B"/></g>
+        <g class="lead g3"><path d="M288 112 L330 108 L392 108"/><circle cx="288" cy="112" r="2" fill="#545A4B"/></g>
+        <g class="lead g2"><path d="M262 140 L330 156 L392 156"/><circle cx="262" cy="140" r="2" fill="#545A4B"/></g>
+        <g class="lead g1"><path d="M238 154 L320 202 L392 202"/><circle cx="238" cy="154" r="2" fill="#545A4B"/></g>
+
+        <g class="g4"><text class="lbl" x="400" y="59">JUL 23</text><text class="lbl-sm" x="400" y="73">101,546 ac</text></g>
+        <g class="g3"><text class="lbl" x="400" y="105">JUL 11</text><text class="lbl-sm" x="400" y="119">54,200 ac</text></g>
+        <g class="g2"><text class="lbl" x="400" y="153">JUL 04</text><text class="lbl-sm" x="400" y="167">18,700 ac</text></g>
+        <g class="g1"><text class="lbl" x="400" y="199">JUN 29</text><text class="lbl-sm" x="400" y="213">900 ac</text></g>
+
+        <text class="lbl-sm" x="60" y="316">MAPPED PERIMETER · SUCCESSIVE REPORTS</text>
+      </svg>
+      <figcaption>Perimeter growth over four reporting dates.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<div class="strip">
+  <div class="wrap strip-inner">
+    <span>App <b>Watchdog</b></span>
+    <span>Version <b>1.0</b></span>
+    <span>Requires <b>iOS 17 or later</b></span>
+    <span>Page updated <b>July 24, 2026</b></span>
+  </div>
+</div>
+
+<main>
+
+<section class="band">
+  <div class="wrap">
+    <div class="band-head">
+      <h2>Start here</h2>
+      <span class="tag">Four most common questions</span>
+    </div>
+    <nav class="jump" aria-label="Common questions">
+      <a href="#alerts"><span class="q">No alerts</span><span class="a">Fire alerts aren't arriving, or arrive late.</span></a>
+      <a href="#missing"><span class="q">Missing fire</span><span class="a">A fire you know about isn't in the list.</span></a>
+      <a href="#perimeters"><span class="q">No perimeters</span><span class="a">Fire outlines don't draw on the map.</span></a>
+      <a href="#battery"><span class="q">Battery use</span><span class="a">Watchdog is using more power than you'd like.</span></a>
+    </nav>
+  </div>
+</section>
+
+<section class="band" id="fixes">
+  <div class="wrap">
+    <div class="band-head">
+      <h2>Troubleshooting</h2>
+      <span class="tag">By symptom</span>
+    </div>
+
+    <div class="topic" id="alerts">
+      <h3>Alerts</h3>
+
+      <details open>
+        <summary>I'm not getting fire alerts</summary>
+        <div class="answer">
+          <p>Work through these in order — the first two account for most cases.</p>
+          <ul>
+            <li>In iOS <kbd>Settings › Notifications › Watchdog</kbd>, make sure notifications are allowed.</li>
+            <li>Open Watchdog and check your alert radius in Settings. Fires outside that radius never alert, no matter how large they are.</li>
+            <li>In iOS <kbd>Settings › Privacy &amp; Security › Location Services › Watchdog</kbd>, choose <strong>Always</strong>. On <em>While Using the App</em>, Watchdog can only check for fires while it's open on screen.</li>
+            <li>Turn off Low Power Mode. It suspends the background work that alerts depend on.</li>
+            <li>Check whether a Focus mode is filtering Watchdog out.</li>
+          </ul>
+          <p>iOS also decides when background apps are allowed to run, and it favours apps you open regularly. Opening Watchdog once a day keeps it in that rotation.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>I'm getting too many alerts</summary>
+        <div class="answer">
+          <p>Lower the alert radius in Settings — that's the single biggest lever. If you only want confirmed, named incidents, turn off satellite detections; those are raw thermal hits from orbit and there are far more of them.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>I got an alert for a fire that turned out to be nothing</summary>
+        <div class="answer">
+          <p>Satellite detections flag heat, not fire specifically. Agricultural burns, flares and hot industrial sites all register. They're included because they surface new fires hours before any agency report, but they're unconfirmed by design. Turn them off in Settings if you'd rather only see named incidents.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="topic" id="missing">
+      <h3>Fires and the map</h3>
+
+      <details>
+        <summary>A fire I know about isn't in the list</summary>
+        <div class="answer">
+          <p>Watchdog reports what the agencies publish. A new fire generally appears once it's been entered into the national incident feed, which can take a few hours from ignition.</p>
+          <ul>
+            <li>Pull down on the list to refresh immediately.</li>
+            <li>Turn on satellite detections in Settings. New fires often show as a thermal detection well before they're named.</li>
+            <li>Check the sort control at the top of the list. Sorting by distance puts a large distant fire far below small nearby ones.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details id="perimeters">
+        <summary>Fire perimeters don't appear on the map</summary>
+        <div class="answer">
+          <ul>
+            <li>Perimeters draw only when you're zoomed in far enough. Zoom in and they appear.</li>
+            <li>Not every fire has one. Perimeters are flown or mapped by hand, so small and very new fires usually have none.</li>
+            <li>Watchdog shows perimeters mapped within the last 14 days, so a dormant fire may have a marker but no outline.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>The acreage looks wrong, or says unknown</summary>
+        <div class="answer">
+          <p>Agencies update fire size on their own schedule — often once a day, sometimes less during a busy week. The number you see is the last one published, not a live measurement.</p>
+          <p>Where no size has been published at all, Watchdog estimates from the mapped perimeter and will show nothing rather than guess if there's no perimeter either.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>A fire is marked out but it's still burning</summary>
+        <div class="answer">
+          <p>Watchdog marks a fire out when an agency reports it out, or when it stops appearing in the feeds and stops growing over a sustained period.</p>
+          <p>If a fire was closed too early, open it and tap <strong>Reactivate</strong> to move it back to the active list.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="topic" id="battery">
+      <h3>Location, battery and data</h3>
+
+      <details>
+        <summary>Watchdog is using a lot of battery</summary>
+        <div class="answer">
+          <p>Background location checking is the main cost, and it's what makes alerts work when the app is closed. Two ways to reduce it:</p>
+          <ul>
+            <li>Narrow your alert radius. A smaller radius means less to check on each update.</li>
+            <li>Set Location to <em>While Using the App</em>. This cuts background use substantially, but you'll stop receiving alerts while the app is closed.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>Location isn't working</summary>
+        <div class="answer">
+          <p>Go to iOS <kbd>Settings › Privacy &amp; Security › Location Services › Watchdog</kbd>. Choose <strong>Always</strong> for background alerts, and turn on <strong>Precise Location</strong> — without it, distances and your alert radius are calculated from an approximate position that can be several miles off.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>The data looks out of date</summary>
+        <div class="answer">
+          <p>Watchdog refreshes roughly every 15 minutes while it's allowed to run, and immediately when you pull down to refresh. When there's no network, it shows the last data it stored so the map still works offline.</p>
+          <p>Note that a fresh refresh doesn't mean fresh <em>agency</em> data. Watchdog can only be as current as the feeds it reads.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="data">
+  <div class="wrap">
+    <div class="band-head">
+      <h2>Where the data comes from</h2>
+      <span class="tag">Public agency feeds</span>
+    </div>
+    <p>Watchdog does not generate fire information. It collects and combines public feeds published by the agencies below, and nothing it shows is more current or more authoritative than its source.</p>
+    <table class="sources">
+      <thead><tr><th scope="col">Source</th><th scope="col">What it provides</th></tr></thead>
+      <tbody>
+        <tr><td>NIFC / WFIGS</td><td>Named incidents, size, containment and mapped perimeters across the United States</td></tr>
+        <tr><td>NASA FIRMS</td><td>Satellite thermal detections from the VIIRS and MODIS instruments</td></tr>
+        <tr><td>InciWeb</td><td>Incident summaries and public updates for larger fires</td></tr>
+        <tr><td>WildCAD</td><td>Interagency dispatch records for new and developing incidents</td></tr>
+        <tr><td>National Weather Service</td><td>Red flag warnings, evacuation-related notices and other active alerts</td></tr>
+        <tr><td>CAL FIRE</td><td>California state incident reporting</td></tr>
+        <tr><td>Oregon Dept. of Forestry</td><td>Oregon state incident reporting</td></tr>
+        <tr><td>Washington DNR</td><td>Washington state incident reporting</td></tr>
+        <tr><td>CWFIS</td><td>Canadian active fires and satellite-derived perimeters</td></tr>
+        <tr><td>USGS</td><td>Recent earthquakes</td></tr>
+        <tr><td>Smithsonian GVP</td><td>Volcanic activity reports</td></tr>
+        <tr><td>Utility reporting</td><td>Power outage counts by area</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="band" id="safety">
+  <div class="wrap">
+    <div class="notice">
+      <h2>Read this first</h2>
+      <p><strong>Watchdog is not an emergency service and is not an official source of evacuation information.</strong> It reports what public agency feeds publish, and those feeds can lag real conditions by hours.</p>
+      <p>Never use Watchdog to decide whether to stay or go. Follow the instructions of your local fire department, sheriff and emergency management office, and sign up for your county's official emergency alert system.</p>
+      <p><strong>In an emergency, call 911.</strong></p>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="privacy">
+  <div class="wrap">
+    <div class="band-head">
+      <h2>Privacy</h2>
+      <span class="tag">Summary</span>
+    </div>
+    <p>Watchdog uses your location to work out which fires are near you and which ones should alert you. There is no account and no sign-in.</p>
+    <p>For the full policy, including what is stored and for how long, see the <a href="https://nsat-dev.github.io/policy">Watchdog privacy policy</a>.</p>
+  </div>
+</section>
+
+<section class="band" id="contact">
+  <div class="wrap">
+    <div class="band-head">
+      <h2>Contact</h2>
+      <span class="tag">Response within 2 business days</span>
+    </div>
+    <div class="contact-grid">
+      <div>
+        <p>If none of the above solved it, send an email. To get to an answer faster, include:</p>
+        <ul>
+          <li>Your iPhone model and iOS version</li>
+          <li>The Watchdog version, shown at the bottom of Settings</li>
+          <li>What you expected to happen, and what happened instead</li>
+          <li>The name and state of any fire involved</li>
+          <li>A screenshot, if there's something to see</li>
+        </ul>
+      </div>
+      <div>
+        <dl class="dl">
+          <dt>Email</dt>
+          <dd><a href="mailto:neal.puff@protonmail.com">neal.puff@protonmail.com</a></dd>
+          <dt>Developer</dt>
+          <dd>Neal Puff</dd>
+          <dt>Feature requests</dt>
+          <dd>Welcome — same address.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Watchdog is an independent app. It is not affiliated with, endorsed by, or operated by any government agency.</p>
+    <p>Fire, weather, seismic and volcanic data courtesy of NIFC, NASA FIRMS, NOAA/NWS, USGS, the Smithsonian Institution Global Volcanism Program, Natural Resources Canada and the state agencies listed above.</p>
+    <p style="margin-top:1em">&copy; 2026 Neal Puff</p>
+  </div>
+</footer>
+
+</body>
+</html>
